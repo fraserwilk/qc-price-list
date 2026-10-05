@@ -22,7 +22,7 @@ WordPress plugin that generates a branded, catalogue-style **PDF price list** (R
    - **Trade price group**: the B2BKing group whose price is shown as "Trade" (defaults to Retailer). Products with no price for that group show the RRP, as B2BKing does.
    - **Categories**: tick which top-level categories (ROAD, MTB, GRAVEL, ...) to include; all are ticked by default. Shared parts are still judged on all their groupsets, then shown only under the ticked categories.
    - **Only show items in stock**: limits the list to products WooCommerce marks as in stock; empty groupsets drop out.
-   - **Footer note**: e.g. "All prices exclude GST."
+   - **Footer note**: defaults to "RRP includes GST. Trade prices exclude GST. Prices subject to change without notice."
 3. Click **Download PDF**. The file downloads as `QC-Price-List-YYYY-MM-DD.pdf`. It is generated on demand and **never stored on the server**, so trade prices can't be reached by URL.
 
 Notes:
@@ -89,7 +89,7 @@ How it works: `qc_price_list_build()` returns `bike type => [sets, general, shar
 - Products with no groupset category end up in the large "Components" section; tidy their categories for a better list.
 - WooCommerce's default product category (normally "Uncategorized") is **GRAVEL** on this site. New products with no category land in Gravel.
 - B2BKing per-user prices and dynamic rules are not applied; only group prices are read.
-- Prices are shown as entered (ex-GST on this site).
+- Prices are shown as entered: RRP includes GST and Trade (B2BKing) prices exclude GST. The columns are labelled "RRP (INC GST)" and "TRADE (EX GST)" to match; if that stops being true, edit the labels in `qc_pl_render_items()` and the default note in the form.
 
 ## Repo
 

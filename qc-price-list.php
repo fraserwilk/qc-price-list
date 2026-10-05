@@ -87,7 +87,7 @@ function qc_price_list_page() {
                 </tr>
                 <tr>
                     <th scope="row"><label for="qc_pl_note">Footer note</label></th>
-                    <td><input type="text" id="qc_pl_note" name="note" class="large-text" value="<?php echo esc_attr('All prices exclude GST. Prices subject to change without notice.'); ?>"></td>
+                    <td><input type="text" id="qc_pl_note" name="note" class="large-text" value="<?php echo esc_attr('RRP includes GST. Trade prices exclude GST. Prices subject to change without notice.'); ?>"></td>
                 </tr>
             </table>
             <?php submit_button('Download PDF', 'primary', 'qc_pl_go', true, ['id' => 'qc-pl-submit']); ?>
@@ -430,8 +430,8 @@ function qc_pl_render_items($rows, $show_rrp, $show_trade) {
                 <div class="codes"><?php echo $e($r['sku']); ?><?php if ($r['stock']) : ?><br><span class="muted">Stock code </span><?php echo $e($r['stock']); ?><?php endif; ?></div>
                 <div class="badges"><?php foreach ($r['bikes'] as $b) : ?><span class="badge <?php echo $e(qc_pl_badge_class($b)); ?>"><?php echo $e($b); ?></span> <?php endforeach; ?></div>
                 <table class="prices"><tr>
-                    <?php if ($show_rrp) : ?><td><span class="plabel">RRP</span><br><span class="pval"><?php echo $e(qc_pl_money($r['rrp'])); ?></span></td><?php endif; ?>
-                    <?php if ($show_trade) : ?><td><span class="plabel">TRADE</span><br><span class="pval trade"><?php echo $e(qc_pl_money($r['trade'])); ?></span></td><?php endif; ?>
+                    <?php if ($show_rrp) : ?><td><span class="plabel">RRP (INC GST)</span><br><span class="pval"><?php echo $e(qc_pl_money($r['rrp'])); ?></span></td><?php endif; ?>
+                    <?php if ($show_trade) : ?><td><span class="plabel">TRADE (EX GST)</span><br><span class="pval trade"><?php echo $e(qc_pl_money($r['trade'])); ?></span></td><?php endif; ?>
                 </tr></table>
             </td>
             <td class="c-spec">
