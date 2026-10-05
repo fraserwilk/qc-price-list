@@ -2,7 +2,7 @@
 /**
  * Plugin Name: QC Price List
  * Description: Generate a branded catalogue-style PDF price list (RRP + trade price) from live WooCommerce data. WooCommerce > Price List.
- * Version: 2.2
+ * Version: 2.3
  * Author: Quality Components
  */
 
