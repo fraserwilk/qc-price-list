@@ -540,8 +540,13 @@ function qc_pl_sections($tops, $show_rrp, $show_trade) {
         <div class="dark" id="<?php echo $e(qc_pl_anchor($top)); ?>"><div class="dark-bg"></div><div style="height:60pt"></div>
             <div class="dv-top"><?php echo $e($top); ?></div>
             <div class="dv-sub">L-TWOO GROUPSETS &amp; COMPONENTS</div>
-            <?php foreach ($data['sets'] as $name => $s) : ?>
-                <div class="dv-set"><div class="nm"><?php echo $e($name); ?></div><?php if ($s['desc']) : ?><div class="ds"><?php echo $e($s['desc']); ?></div><?php endif; ?></div>
+            <?php
+            // Keep the whole groupset list on this one page however many groupsets there are.
+            $n    = max(1, count($data['sets']));
+            $nm   = $n <= 9 ? 24 : ($n <= 12 ? 19 : 15);
+            $gap  = max(3, min(20, (int) floor((440 - $n * ($nm * 1.25 + 12)) / $n)));
+            foreach ($data['sets'] as $name => $s) : ?>
+                <div class="dv-set" style="margin-bottom:<?php echo (int) $gap; ?>pt"><div class="nm" style="font-size:<?php echo (int) $nm; ?>pt"><?php echo $e($name); ?></div><?php if ($s['desc']) : ?><div class="ds"><?php echo $e($s['desc']); ?></div><?php endif; ?></div>
             <?php endforeach; ?>
         </div>
         <?php
