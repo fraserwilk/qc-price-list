@@ -26,7 +26,9 @@ WordPress plugin that generates a branded, catalogue-style **PDF price list** (R
 
 Notes:
 - Generation takes ~25 s for the full catalogue (the layout is calculated twice, see below).
-- The **first** run is slow (a couple of minutes) because product images live on S3 and are resized and cached to `wp-content/uploads/qc-price-list-cache/`. If it times out, run it again; it continues from the cache. Cached images are keyed by attachment and modified date, so changed images are picked up automatically. The folder is safe to delete.
+- Clicking **Download PDF** first **prepares images** in small batches (a progress counter shows next to the button), then builds the PDF. Product images live on S3, so the first run takes a couple of minutes; images are resized and cached to `wp-content/uploads/qc-price-list-cache/` (keyed by attachment and modified date, so changed images are picked up). Later runs skip straight to building. The folder is safe to delete.
+- The build needs roughly **400MB of PHP memory** on top of WordPress. The plugin asks for 1GB with `ini_set`; if the host forbids that, raise `memory_limit` in PHP/hosting settings.
+- **Zero-byte download / troubleshooting:** this used to happen when PHP ran out of memory or time (the process dies before any output). A failure now shows a plain-text error (and is written to the PHP error log as `QC Price List fatal`). If you see a memory error, raise the memory limit or build one Category at a time.
 - "POA" is shown where a product has no price.
 
 ## Where the data comes from

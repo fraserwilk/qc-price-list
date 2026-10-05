@@ -92,18 +92,92 @@ function qc_price_list_page() {
                     <td><input type="text" id="qc_pl_note" name="note" class="large-text" value="<?php echo esc_attr('All prices exclude GST. Prices subject to change without notice.'); ?>"></td>
                 </tr>
             </table>
-            <?php submit_button('Download PDF'); ?>
+            <?php submit_button('Download PDF', 'primary', 'submit', true, ['id' => 'qc-pl-submit']); ?>
+            <span id="qc-pl-status" style="margin-left:10px"></span>
         </form>
+        <script>
+        (function () {
+            var form = document.querySelector('form input[name="action"][value="qc_price_list"]').form;
+            var btn = document.getElementById('qc-pl-submit'), status = document.getElementById('qc-pl-status');
+            var nonce = <?php echo wp_json_encode(wp_create_nonce('qc_price_list')); ?>;
+            var ajax = <?php echo wp_json_encode(admin_url('admin-ajax.php')); ?>;
+            var ready = false;
+            form.addEventListener('submit', function (e) {
+                if (ready) return;
+                e.preventDefault();
+                btn.disabled = true;
+                var first = null;
+                (function step() {
+                    var body = new URLSearchParams({action: 'qc_price_list_warm', _ajax_nonce: nonce});
+                    fetch(ajax, {method: 'POST', credentials: 'same-origin', body: body})
+                        .then(function (r) { return r.json(); })
+                        .then(function (j) {
+                            if (!j.success) throw new Error('image preparation failed');
+                            if (first === null) first = j.data.remaining;
+                            if (j.data.remaining > 0) {
+                                status.textContent = 'Preparing images: ' + (first - j.data.remaining) + ' / ' + first + '...';
+                                return step();
+                            }
+                            status.textContent = 'Building PDF (about 30 seconds)...';
+                            ready = true;
+                            form.submit();
+                            setTimeout(function () { btn.disabled = false; status.textContent = ''; ready = false; }, 60000);
+                        })
+                        .catch(function (err) { status.textContent = 'Error: ' + err.message; btn.disabled = false; });
+                })();
+            });
+        })();
+        </script>
     </div>
     <?php
 }
+
+/**
+ * AJAX: resize/cache product images in small batches so the PDF request itself is fast
+ * (images may live on S3 and be slow to fetch; a single long request can hit host time limits).
+ */
+add_action('wp_ajax_qc_price_list_warm', function () {
+    if (!current_user_can('manage_woocommerce')) wp_send_json_error('Unauthorised', 403);
+    check_ajax_referer('qc_price_list');
+    @set_time_limit(60);
+
+    $ids = wc_get_products(['limit' => -1, 'status' => 'publish', 'return' => 'ids']);
+    $todo = [];
+    foreach ($ids as $id) {
+        $thumb = get_post_thumbnail_id($id);
+        $dest  = $thumb ? qc_pl_image_dest($thumb) : '';
+        if ($dest && !file_exists($dest)) $todo[$thumb] = true;
+    }
+    $todo  = array_keys($todo);
+    $start = microtime(true);
+    $done  = 0;
+    foreach ($todo as $thumb) {
+        qc_pl_image($thumb);
+        $done++;
+        if (microtime(true) - $start > 12) break; // keep each request short
+    }
+    wp_send_json_success(['remaining' => max(0, count($todo) - $done), 'total' => count($ids)]);
+});
 
 add_action('admin_post_qc_price_list', function () {
     if (!current_user_can('manage_woocommerce')) wp_die('Unauthorised', 403);
     check_admin_referer('qc_price_list');
 
+    // The catalogue is memory hungry (~200MB on top of WordPress); ask for plenty, and if the
+    // process still dies, say so instead of returning an empty (zero byte) download.
+    @ini_set('memory_limit', '1024M');
     @set_time_limit(300);
-    wp_raise_memory_limit('admin');
+    register_shutdown_function(function () {
+        $err = error_get_last();
+        if ($err && in_array($err['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+            error_log('QC Price List fatal: ' . $err['message'] . ' in ' . $err['file'] . ':' . $err['line']);
+            if (!headers_sent()) {
+                http_response_code(500);
+                header('Content-Type: text/plain; charset=utf-8');
+            }
+            echo "QC Price List failed to generate.\n\n" . $err['message'] . "\n\nIf this mentions memory, raise PHP memory_limit (needs ~400MB) or try a single Category.";
+        }
+    });
 
     $columns = isset($_POST['columns']) ? sanitize_key(wp_unslash($_POST['columns'])) : 'both';
     if (!in_array($columns, ['both', 'rrp', 'trade'], true)) $columns = 'both';
@@ -118,7 +192,12 @@ add_action('admin_post_qc_price_list', function () {
     $cat   = isset($_POST['category']) ? (int) $_POST['category'] : 0;
 
     $tops = qc_price_list_build($group, $cat, !empty($_POST['in_stock']));
-    $dompdf = qc_price_list_pdf($tops, $columns, $title, $note, $group ? $names[$group] : '');
+    try {
+        $dompdf = qc_price_list_pdf($tops, $columns, $title, $note, $group ? $names[$group] : '');
+    } catch (\Throwable $ex) {
+        wp_die('QC Price List failed to generate: ' . esc_html($ex->getMessage()), 'Price List error', 500);
+    }
+    while (ob_get_level()) ob_end_clean(); // stray output would corrupt the PDF
     $dompdf->stream('QC-Price-List-' . wp_date('Y-m-d') . '.pdf', ['Attachment' => true]);
     exit;
 });
@@ -157,16 +236,20 @@ function qc_pl_txt($s) {
  * Resize an attachment to a small JPEG (dompdf cannot read WebP, and big PNGs bloat the PDF).
  * Cached under uploads/qc-price-list-cache. Returns an absolute path or ''.
  */
-function qc_pl_image($attachment_id, $max = 360, $bg = [244, 244, 241]) {
+function qc_pl_image_dest($attachment_id, $max = 360) {
     if (!$attachment_id) return '';
     $src = get_attached_file($attachment_id);
     if (!$src) return '';
+    $up = wp_get_upload_dir();
+    return $up['basedir'] . '/qc-price-list-cache/' . $attachment_id . '-' . $max . '-' . md5(get_post_field('post_modified_gmt', $attachment_id) . $src) . '.jpg';
+}
 
-    $up   = wp_get_upload_dir();
-    $dir  = $up['basedir'] . '/qc-price-list-cache';
-    $dest = $dir . '/' . $attachment_id . '-' . $max . '-' . md5(get_post_field('post_modified_gmt', $attachment_id) . $src) . '.jpg';
+function qc_pl_image($attachment_id, $max = 360, $bg = [244, 244, 241]) {
+    $dest = qc_pl_image_dest($attachment_id, $max);
+    if (!$dest) return '';
+    $src = get_attached_file($attachment_id);
     if (file_exists($dest)) return $dest;
-    wp_mkdir_p($dir);
+    wp_mkdir_p(dirname($dest));
 
     // Media may be offloaded (s3auto:// stream) and the stored mime can be wrong, so sniff the real format.
     $data = @file_get_contents($src);
