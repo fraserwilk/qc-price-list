@@ -205,7 +205,7 @@ add_action('admin_post_qc_price_list', function () {
 /** Preferred display order of groupsets within each bike type; unknown ones follow alphabetically. */
 function qc_price_list_order() {
     return [
-        'ROAD'    => ['eR9', 'eR7', 'eRX', 'eRX-eTT', 'RX', 'R9', 'R7', 'R5', 'R3', 'R2'],
+        'ROAD'    => ['eRX', 'eRX-eTT', 'eR9', 'eR7', 'RX', 'R9', 'R7', 'R5', 'R3', 'R2'],
         'MTB'     => ['eTX', 'AX13', 'AX', 'A9', 'A7', 'A5', 'A3', 'A2', 'TX', 'T7'],
         'GRAVEL'  => ['eGR', 'GRT13', 'GRT', 'GR9', 'GR7', 'GR5'],
         'FOLDING' => [],
