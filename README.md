@@ -9,6 +9,7 @@ WordPress plugin that generates a branded, catalogue-style **PDF price list** (R
 - **Product pages per groupset** (e.g. eR9, A7, GRT), grouped under component headings (Shift Lever, Rear Derailleur, Brake Caliper, ...). Each product shows its image, name, SKU, stock code, bike-type badges, RRP / Trade price and all of its WooCommerce attributes as a spec list.
 - **"Accessories & Universal Parts"** section per bike type for parts that belong to more than 6 groupsets (rotors, hose bolts, etc.), so they appear once instead of in every groupset.
 - **"Components"** section for products that sit in a bike type but in no groupset.
+- **Clickable navigation:** the side tabs are links. Click a bike-type tab to jump to its divider page, or a groupset / ACC tab to jump to that section (works in most PDF viewers).
 - **Right-edge index tabs** on every page after the cover: bike types down the edge (current one coloured), and the current bike type's groupsets beside it (current groupset coloured). Shared-parts pages get an `ACC` tab.
 - Footer with site name, note and page number.
 
@@ -19,7 +20,7 @@ WordPress plugin that generates a branded, catalogue-style **PDF price list** (R
    - **Title**: printed on the cover.
    - **Prices**: RRP + Trade, RRP only (safe to share publicly), or Trade only.
    - **Trade price group**: the B2BKing group whose price is shown as "Trade" (defaults to Retailer). Products with no price for that group show the RRP, as B2BKing does.
-   - **Category**: all, or a single top-level category.
+   - **Categories**: tick which top-level categories (ROAD, MTB, GRAVEL, ...) to include; all are ticked by default. Shared parts are still judged on all their groupsets, then shown only under the ticked categories.
    - **Only show items in stock**: limits the list to products WooCommerce marks as in stock; empty groupsets drop out.
    - **Footer note**: e.g. "All prices exclude GST."
 3. Click **Download PDF**. The file downloads as `QC-Price-List-YYYY-MM-DD.pdf`. It is generated on demand and **never stored on the server**, so trade prices can't be reached by URL.

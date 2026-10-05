@@ -73,14 +73,12 @@ function qc_price_list_page() {
                     </td>
                 </tr>
                 <tr>
-                    <th scope="row"><label for="qc_pl_cat">Category</label></th>
+                    <th scope="row">Categories</th>
                     <td>
-                        <select id="qc_pl_cat" name="category">
-                            <option value="0">All categories</option>
-                            <?php foreach ($cats as $c) : ?>
-                                <option value="<?php echo (int) $c->term_id; ?>"><?php echo esc_html($c->name); ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                        <?php foreach ($cats as $c) : ?>
+                            <label style="display:inline-block;margin-right:18px"><input type="checkbox" name="categories[]" value="<?php echo (int) $c->term_id; ?>" checked> <?php echo esc_html($c->name); ?></label>
+                        <?php endforeach; ?>
+                        <p class="description">Only ticked top-level categories are included in the PDF.</p>
                     </td>
                 </tr>
                 <tr>
@@ -189,9 +187,9 @@ add_action('admin_post_qc_price_list', function () {
 
     $title = isset($_POST['title']) ? sanitize_text_field(wp_unslash($_POST['title'])) : 'Price List';
     $note  = isset($_POST['note']) ? sanitize_text_field(wp_unslash($_POST['note'])) : '';
-    $cat   = isset($_POST['category']) ? (int) $_POST['category'] : 0;
+    $cats  = isset($_POST['categories']) ? array_map('intval', (array) wp_unslash($_POST['categories'])) : [];
 
-    $tops = qc_price_list_build($group, $cat, !empty($_POST['in_stock']));
+    $tops = qc_price_list_build($group, $cats, !empty($_POST['in_stock']));
     try {
         $dompdf = qc_price_list_pdf($tops, $columns, $title, $note, $group ? $names[$group] : '');
     } catch (\Throwable $ex) {
@@ -305,12 +303,24 @@ function qc_pl_row($product, $group, $bike_types) {
  * @return array<string,array{sets:array<string,array{desc:string,rows:array}>,general:array,shared:array}>
  *         bike type => groupsets etc.
  */
-function qc_price_list_build($group, $cat, $in_stock = false) {
+function qc_price_list_build($group, $cats = [], $in_stock = false) {
     $args = ['limit' => -1, 'status' => 'publish', 'orderby' => 'name', 'order' => 'ASC'];
     if ($in_stock) $args['stock_status'] = 'instock';
-    if ($cat) {
-        $term = get_term($cat, 'product_cat');
-        if ($term && !is_wp_error($term)) $args['category'] = [$term->slug];
+
+    // $allowed: bike type name => true, or null for "everything".
+    $allowed = null;
+    $cats    = array_filter(array_map('intval', (array) $cats));
+    if ($cats) {
+        $slugs   = [];
+        $allowed = [];
+        foreach ($cats as $id) {
+            $term = get_term($id, 'product_cat');
+            if ($term && !is_wp_error($term)) {
+                $slugs[]                         = $term->slug;
+                $allowed[qc_pl_txt($term->name)] = true;
+            }
+        }
+        if ($slugs) $args['category'] = $slugs;
     }
 
     $tops = [];
@@ -333,11 +343,19 @@ function qc_price_list_build($group, $cat, $in_stock = false) {
         }
         if (!$bikes) continue;
 
-        $row    = qc_pl_row($product, $group, array_keys($bikes));
         $unique = [];
         foreach ($sets as $s) $unique[$s[0] . '|' . $s[1]] = $s;
+        $is_shared = count($unique) > QC_PL_SHARED_THRESHOLD; // judged on all groupsets, before category filtering
 
-        if (count($unique) > QC_PL_SHARED_THRESHOLD) {
+        if ($allowed !== null) {
+            $bikes  = array_intersect_key($bikes, $allowed);
+            $unique = array_filter($unique, function ($x) use ($allowed) { return isset($allowed[$x[0]]); });
+            if (!$bikes) continue;
+        }
+
+        $row = qc_pl_row($product, $group, array_keys($bikes));
+
+        if ($is_shared) {
             foreach (array_keys($bikes) as $b) $tops[$b]['shared'][] = $row;
         } elseif ($unique) {
             foreach ($unique as $s) {
@@ -503,6 +521,11 @@ function qc_pl_doc($body, $note) {
     return ob_get_clean();
 }
 
+/** Named PDF destination for a bike type divider ($set = null) or a groupset/section page. */
+function qc_pl_anchor($top, $set = null) {
+    return 'qc' . substr(md5($top . '|' . ($set ?? '')), 0, 12);
+}
+
 /**
  * Split the catalogue into sections that each start on a fresh page.
  *
@@ -514,7 +537,7 @@ function qc_pl_sections($tops, $show_rrp, $show_trade) {
 
     foreach ($tops as $top => $data) {
         ob_start(); ?>
-        <div class="dark"><div class="dark-bg"></div><div style="height:60pt"></div>
+        <div class="dark" id="<?php echo $e(qc_pl_anchor($top)); ?>"><div class="dark-bg"></div><div style="height:60pt"></div>
             <div class="dv-top"><?php echo $e($top); ?></div>
             <div class="dv-sub">L-TWOO GROUPSETS &amp; COMPONENTS</div>
             <?php foreach ($data['sets'] as $name => $s) : ?>
@@ -531,7 +554,7 @@ function qc_pl_sections($tops, $show_rrp, $show_trade) {
 
         foreach ($blocks as [$label, $tab, $desc, $rows]) {
             ob_start(); ?>
-            <div class="sethead" style="page-break-before:always"><span class="badge <?php echo $e(qc_pl_badge_class($top)); ?>"><?php echo $e($top); ?></span>
+            <div class="sethead" id="<?php echo $e(qc_pl_anchor($top, $tab ?? 'general')); ?>" style="page-break-before:always"><span class="badge <?php echo $e(qc_pl_badge_class($top)); ?>"><?php echo $e($top); ?></span>
                 <div class="nm"><?php echo $e($label); ?></div><?php if ($desc) : ?><div class="ds"><?php echo $e($desc); ?></div><?php endif; ?></div>
             <?php
             qc_pl_render_items($rows, $show_rrp, $show_trade);
@@ -604,6 +627,7 @@ function qc_pl_draw_tabs($canvas, $fm, $state, $tops) {
 
         list($fill, $txt) = qc_pl_top_colours($top);
         $canvas->filled_rectangle($mx, $y, $mw, $h - 2, $active ? $hex($fill) : $grey);
+        $canvas->add_link('#' . qc_pl_anchor($top), $mx, $y, $mw, $h - 2);
         $canvas->text($mx + $mw / 2 + $msize * 0.36, $y + ($h - 2 + $tw) / 2, strtoupper($top), $bold, $msize, $active ? $hex($txt) : [1, 1, 1], 0, 0, -90);
 
         if ($active) {
@@ -611,6 +635,7 @@ function qc_pl_draw_tabs($canvas, $fm, $state, $tops) {
             foreach ($subs as $s) {
                 $on = ($s === $state['set']);
                 $canvas->filled_rectangle($sx, $sy, $sw, $sh, $on ? $hex($fill) : $grey);
+                $canvas->add_link('#' . qc_pl_anchor($top, $s), $sx, $sy, $sw, $sh);
                 $stw = $fm->getTextWidth($s, $bold, $ssize);
                 $canvas->text($sx + ($sw - $stw) / 2, $sy + ($sh - $ssize) / 2, $s, $bold, $ssize, $on ? $hex($txt) : [1, 1, 1]);
                 $sy += $sh + 1;
