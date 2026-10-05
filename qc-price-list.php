@@ -92,7 +92,7 @@ function qc_price_list_page() {
                     <td><input type="text" id="qc_pl_note" name="note" class="large-text" value="<?php echo esc_attr('All prices exclude GST. Prices subject to change without notice.'); ?>"></td>
                 </tr>
             </table>
-            <?php submit_button('Download PDF', 'primary', 'submit', true, ['id' => 'qc-pl-submit']); ?>
+            <?php submit_button('Download PDF', 'primary', 'qc_pl_go', true, ['id' => 'qc-pl-submit']); ?>
             <span id="qc-pl-status" style="margin-left:10px"></span>
         </form>
         <script>
@@ -120,7 +120,7 @@ function qc_price_list_page() {
                             }
                             status.textContent = 'Building PDF (about 30 seconds)...';
                             ready = true;
-                            form.submit();
+                            HTMLFormElement.prototype.submit.call(form);
                             setTimeout(function () { btn.disabled = false; status.textContent = ''; ready = false; }, 60000);
                         })
                         .catch(function (err) { status.textContent = 'Error: ' + err.message; btn.disabled = false; });
