@@ -10,6 +10,7 @@ WordPress plugin that generates a branded, catalogue-style **PDF price list** (R
 - **"Accessories & Universal Parts"** section per bike type for parts that belong to more than 6 groupsets (rotors, hose bolts, etc.), so they appear once instead of in every groupset.
 - **"Components"** section for products that sit in a bike type but in no groupset.
 - **Clickable navigation:** the side tabs are links. Click a bike-type tab to jump to its divider page, or a groupset / ACC tab to jump to that section (works in most PDF viewers).
+- **Product links:** each product name links to its page on the live shop (`https://qualitycomponents.com.au/product/...`). The domain is the `QC_PL_PUBLIC_URL` constant (override with the `qc_price_list_public_url` filter), so PDFs built on a dev copy still link to the live site.
 - **Right-edge index tabs** on every page after the cover: bike types down the edge (current one coloured), and the current bike type's groupsets beside it (current groupset coloured). Shared-parts pages get an `ACC` tab.
 - Footer with site name, note and page number.
 

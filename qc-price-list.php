@@ -13,6 +13,7 @@ require_once __DIR__ . '/vendor/autoload.php';
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
+const QC_PL_PUBLIC_URL = 'https://qualitycomponents.com.au'; // product links always point at the live shop, even when generated on a dev copy.
 const QC_PL_SHARED_THRESHOLD = 6; // Parts in more groupsets than this go into the shared "Accessories" section.
 
 add_action('admin_menu', function () {
@@ -265,6 +266,14 @@ function qc_pl_image($attachment_id, $max = 360, $bg = [244, 244, 241]) {
     return $dest;
 }
 
+/** Public (live site) URL for a product, whichever environment generates the PDF. */
+function qc_pl_product_url($product_id) {
+    $url  = get_permalink($product_id);
+    $home = untrailingslashit(home_url());
+    if ($url && strpos($url, $home) === 0) $url = untrailingslashit(apply_filters('qc_price_list_public_url', QC_PL_PUBLIC_URL)) . substr($url, strlen($home));
+    return (string) $url;
+}
+
 function qc_pl_row($product, $group, $bike_types) {
     $id  = $product->get_id();
     $rrp = $product->get_regular_price();
@@ -288,6 +297,7 @@ function qc_pl_row($product, $group, $bike_types) {
 
     return [
         'name'  => qc_pl_txt($product->get_name()),
+        'url'   => qc_pl_product_url($id),
         'sku'   => qc_pl_txt($product->get_sku()),
         'stock' => (string) get_post_meta($id, defined('QC_STOCK_CODE_META_KEY') ? QC_STOCK_CODE_META_KEY : '_qc_stock_code', true),
         'comp'  => ($comp && !is_wp_error($comp)) ? qc_pl_txt($comp[0]) : 'Other',
@@ -426,7 +436,7 @@ function qc_pl_render_items($rows, $show_rrp, $show_trade) {
         <div class="item"><?php echo $head; // phpcs:ignore WordPress.Security.EscapeOutput ?><table class="it"><tr>
             <td class="c-img"><div class="imgbox"><?php if ($r['img']) : ?><img src="<?php echo $e($r['img']); ?>"><?php endif; ?></div></td>
             <td class="c-mid">
-                <div class="pname"><?php echo $e($r['name']); ?></div>
+                <div class="pname"><?php if ($r['url']) : ?><a href="<?php echo esc_url($r['url']); ?>"><?php echo $e($r['name']); ?></a><?php else : echo $e($r['name']); endif; ?></div>
                 <div class="codes"><?php echo $e($r['sku']); ?><?php if ($r['stock']) : ?><br><span class="muted">Stock code </span><?php echo $e($r['stock']); ?><?php endif; ?></div>
                 <div class="badges"><?php foreach ($r['bikes'] as $b) : ?><span class="badge <?php echo $e(qc_pl_badge_class($b)); ?>"><?php echo $e($b); ?></span> <?php endforeach; ?></div>
                 <table class="prices"><tr>
@@ -484,6 +494,7 @@ function qc_pl_css() {
     td.c-spec { vertical-align: top; }
     .imgbox { width: 92pt; height: 92pt; background: #f4f4f1; text-align: center; }
     .imgbox img { max-width: 92pt; max-height: 92pt; }
+    .pname a { color: #202020; text-decoration: none; }
     .pname { font-size: 9.5pt; font-weight: bold; line-height: 1.15; }
     .codes { font-size: 8pt; margin-top: 2pt; }
     .muted { color: #686868; }
